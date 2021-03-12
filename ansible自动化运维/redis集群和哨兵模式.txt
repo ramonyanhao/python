@@ -1,0 +1,196 @@
+redis 集群需要先创建集群节点，先把/etc/redis.conf配置文件拷贝至少3份到自定义的节点目录，因为集群最少需要3个主节点，例如先创建集群节点需要的目录
+/opt/redis/cluster/7100
+/opt/redis/cluster/7200
+/opt/redis/cluster/7300
+/opt/redis/cluster/7400
+/opt/redis/cluster/7500
+/opt/redis/cluster/7600
+然后把redis.conf拷贝到三个目录中
+for i in `ls`
+do
+cp -a /etc/redis.conf $i/redis.conf
+done
+修改配置文件里的选项，可以使用shell批量操作
+for i in `ls`
+do
+sed -i "s/6379/$i/g" $i/redis.conf  把6379端口改成相应的端口 sed -i '3d' file.txt删除文件file.txt第三行；sed -i '/NewBalance/d' file.txt删除文件file.txt包含NewBalance字符串的行
+sed -i "s/# cluster-node-timeout 15000/cluster-node-timeout 5000/g" $i/redis.conf 指定集群节点超时时间
+sed -i "s/# cluster-config-file nodes-6379.conf/cluster-config-file nodes-$i.conf/g" $i/redis.conf 集群节点配置文件
+sed -i "s/# cluster-enabled yes/cluster-enabled yes/g" $i/redis.conf  启动集群模式
+done
+批量修改完所有配置文件后启动节点
+for i in `ls`
+do
+redis-server $i/redis.conf
+done
+然后开始创建集群
+redis-cli --cluster create 192.168.43.128:7100 192.168.43.128:7200 192.168.43.128:7300 创建集群三个主节点7100,7200,7300
+注意这里没有指定从节点，全部是主节点，因为redis集群如果指定了全部节点后使用--cluster-replicas 1就会被系统自动分配从节点，例如:
+redis-cli --cluster create 192.168.43.128:7100 192.168.43.128:7200 192.168.43.128:7300 192.168.43.128:7400 192.168.43.128:7500 192.168.43.128:7600 --cluster-replicas 1
+redis集群会自动分配三个主节点，并且每个主节点中会自动分配一个从节点，如果要手动指定哪个从节点隶属哪个主节点，则先创建需要的主节点7100，7200，7300
+然后运行
+redis-cli --cluster add-nodes 192.168.43.128:7400(新节点) 192.168.43.128:7100(这个地址代表集群，可以写集群中随意的一个节点)
+--cluster-slave(如果没有这句那么新添加的节点为主节点) --cluster-master-id (这个新的从节点隶属于哪个主节点，这里就填写这个主节点的id)
+查看集群中所有节点信息,包括所有节点的id
+redis-cli -c -h 192.168.43.128 -p 7100 cluster nodes (如果集群设置了密码后面还需要加-a password)
+或者使用下面两条命令也可以查看集群状态
+redis-cli --cluster info 192.168.43.128:7100 查看集群信息
+redis-cli --cluster check 192.168.43.128:7100 检查集群
+redis-cli --cluster help
+Cluster Manager Commands:
+  create         host1:port1 ... hostN:portN   #创建集群
+                 --cluster-replicas <arg>      #从节点个数
+  check          host:port                     #检查集群
+                 --cluster-search-multiple-owners #检查是否有槽同时被分配给了多个节点
+  info           host:port                     #查看集群状态
+  fix            host:port                     #修复集群
+                 --cluster-search-multiple-owners #修复槽的重复分配问题
+  reshard        host:port                     #指定集群的任意一节点进行迁移slot，重新分slots
+                 --cluster-from <arg>          #需要从哪些源节点上迁移slot，可从多个源节点完成迁移，以逗号隔开，传递的是节点的node id，还可以直接传递--from all，这样源节点就是集群的所有节点，不传递该参数的话，则会在迁移过程中提示用户输入
+                 --cluster-to <arg>            #slot需要迁移的目的节点的node id，目的节点只能填写一个，不传递该参数的话，则会在迁移过程中提示用户输入
+                 --cluster-slots <arg>         #需要迁移的slot数量，不传递该参数的话，则会在迁移过程中提示用户输入。
+                 --cluster-yes                 #指定迁移时的确认输入
+                 --cluster-timeout <arg>       #设置migrate命令的超时时间
+                 --cluster-pipeline <arg>      #定义cluster getkeysinslot命令一次取出的key数量，不传的话使用默认值为10
+                 --cluster-replace             #是否直接replace到目标节点
+  rebalance      host:port                                      #指定集群的任意一节点进行平衡集群节点slot数量
+                 --cluster-weight <node1=w1...nodeN=wN>         #指定集群节点的权重
+                 --cluster-use-empty-masters                    #设置可以让没有分配slot的主节点参与，默认不允许
+                 --cluster-timeout <arg>                        #设置migrate命令的超时时间
+                 --cluster-simulate                             #模拟rebalance操作，不会真正执行迁移操作
+                 --cluster-pipeline <arg>                       #定义cluster getkeysinslot命令一次取出的key数量，默认值为10
+                 --cluster-threshold <arg>                      #迁移的slot阈值超过threshold，执行rebalance操作
+                 --cluster-replace                              #是否直接replace到目标节点
+  add-node       new_host:new_port existing_host:existing_port  #添加节点，把新节点加入到指定的集群，默认添加主节点
+                 --cluster-slave                                #新节点作为从节点，默认随机一个主节点
+                 --cluster-master-id <arg>                      #给新节点指定主节点
+  del-node       host:port node_id                              #删除给定的一个节点，成功后关闭该节点服务
+  call           host:port command arg arg .. arg               #在集群的所有节点执行相关命令
+  set-timeout    host:port milliseconds                         #设置cluster-node-timeout
+  import         host:port                                      #将外部redis数据导入集群
+                 --cluster-from <arg>                           #将指定实例的数据导入到集群
+                 --cluster-copy                                 #migrate时指定copy
+                 --cluster-replace                              #migrate时指定replace
+已经手动指定好了集群中的三台主节点，现在为集群添加新的从节点，并且指定某个从节点隶属于哪个主节点，主从关系如下:
+从节点  隶属于   主节点
+7400           7100
+7500           7200
+7600           7300
+redis-cli --cluster add-node 192.168.43.128:7400 192.168.43.128:7100 --cluster-slave --cluster-master-id 7100的id--可以通过redis-cli -c -h 192.168.43.128 -p 7100 cluster nodes查看ID
+redis-cli --cluster add-node 192.168.43.128:7500 192.168.43.128:7100 --cluster-slave --cluster-master-id 7200的id
+redis-cli --cluster add-node 192.168.43.128:7600 192.168.43.128:7100 --cluster-slave --cluster-master-id 7300的id
+redis存取key的时候，都要定位相应的槽(slot)，slot的概念就相当于抽象的磁道，用来存放数据，slot实际并不存在，注意只有主节点有slot,从节点是没有slot的
+如果集群中新添加一个主节点，这里就需要给这个主节点分配slot,否则它无法使用,slot最主要的目的都是在移除、添加一个节点时对已经存在的缓存数据的定位影响尽可能的降到最小
+如果用户将新节点 D 添加到集群中， 那么集群只需要将节点 A 、B 、 C 中的某些槽移动到节点 D 就可以了。
+与此类似， 如果用户要从集群中移除节点 A ， 那么集群只需要将节点 A 中的所有哈希槽移动到节点 B 和节点 C,然后再移除空白（不包含任何哈希槽）的节点 A 就可以了。
+分配slot的命令:
+redis-cli --cluster add-node 192.168.43.128:7700 192.168.43.128:7100  添加一个主节点7700,此时的7700是没有slot的
+redis-cli --cluster reshard 192.168.43.128:7700  运行这个命令后系统会提示把多少个slot分配给这个新的主节点(1 to 16384),一般用16384/主节点数4=4096
+确定后系统提示接收节点的ID是什么?这里填写新加入主节点的ID,再次确定后系统需要指定把哪些节点的slot分配到新节点中，这里可以指定所有的主节点，填入all即可
+如果只需要一个节点的slot就填入这个节点的ID，输入完成后再输入done系统就会开始分配slot
+如果要移除一个主节点，首先需要把这个主节点的slot分配给其他的主节点，然后删除这个空的主节点,例如需要删除7700
+redis-cli --cluster reshard 192.168.43.128:7700
+注意这里和上面不同，再填写接收节点的ID时，因为接受节点只能有一个，所以这里填写集群中的某一个主节点，而上面是把所有主节点的slot平均分配给这个新的主节点，总共大小是4096个slot
+完成后就可以直接删除这个空的主节点了，使用redis-cli --cluster del-node 192.168.43.128:7700 7700节点的id,由于从节点是没有slot的，所以删除从节点可以直接运行redis-cli --cluster del-node
+到这里集群已经搭建完成，现在开始搭建集群哨兵模式
+先创建哨兵需要的目录，因为集群有6个节点，三个主节点，三个从节点，需要6个哨兵目录，但是注意这6个哨兵都配置成监控三个主节点，也就是每个哨兵都监控三个主节点，三个从节点不需要配置哨兵会自动发现
+/opt/redis/sentinel/s1
+/opt/redis/sentinel/s2
+/opt/redis/sentinel/s3
+/opt/redis/sentinel/s4
+/opt/redis/sentinel/s5
+/opt/redis/sentinel/s6
+哨兵的配置文件不能使用redis.conf,如果通过源代码安装redis,解压后目录中会有sentinel配置文件，如果通过yum安装，这里需要先下载一个redis
+wget http://download.redis.io/releases/redis-5.0.3.tar.gz
+tar -zxvf redis-5.0.3.tar.gz
+再进入redis-5.0.3目录找到sentinel.conf配置文件并复制到刚才创建的6个sentinel目录中
+修改sentinel.conf配置文件，注意sentinel.conf配置文件只需要配置master不需要配置slave,因为在redis集群中master已经包含了slave信息，slave可以被自动检测到
+另外配置文件sentinel.conf在运行时会被动态修改的，当发生主备切换时，配置文件中的master会被改为另一个slave
+port 7111 这个是sentinel的端口，不要和集群端口搞混了
+daemonize yes 后台启动程序
+bind 0.0.0.0  绑定服务器地址，如果设置成0.0.0.0,在客户端连接时就不需要输入redis服务器IP地址了，直接输入端口即可
+protected-mode no 关闭保护模式，如果集群节点redis.conf开启了保护模式，这里就开启，集群关闭这里就关闭，另外保护模式主要作用是如果redis没有设置密码，那么redis客户端只能从本地进行访问，如果是从其他机器连接过来访问的，就会报错误，
+所以关闭保护模式就可以从其他机器访问这台redis服务器或者设置redis访问密码也可以访问，目前最安全的方法是开启保护模式，并设置bind 内网IP，设置访问密码
+pidfile "/var/run/redis-sentinel-s1.pid" 可以通过for循环批量处理所有配置文件
+for i in `ls`
+do
+sed -i "s/redis.pid/redis-sentinel-$i.pid/g" $i/sentinel.conf
+done
+logfile "/opt/redis/sentinel/s1/redis-sentinel-s1.log" 可以通过for循环批量处理所有配置文件
+for i in `ls`
+do
+sed -i "s/var\/log\/sentinel.log/opt\/redis\/sentinel\/$i\/redis-sentinel-$i.log/g" $i/sentinel.conf
+done
+dir "/opt/redis/sentinel/s1"
+sentinel monitor mymaster 192.168.43.128 7100 2  *这里是最重要的配置了，让这台哨兵监视哪台master,注意在故障转移时sentinel会自动修改这里的配置为当前的master
+另外需要说明的一点如果只有一个master,多个slave,那么在所有的sentinel配置文件里只需要输入这一个master地址和端口就可以了，mymaster是这个master的别名，在下面的配置中就可以不用master的ip和端口，只用这个别名就可以
+后面的2代表判断这个master失效至少需要2个Sentinel进程的同意，只要同意Sentinel的数量不达标，自动failover(自动故障转移)就不会执行
+如果有多个master和多个slave,例如虚拟机上的三个master和三个slave:
+从节点    主节点      监控master的哨兵
+7400     7100      7111，7222，7333，7444，7555，7666
+7500     7200      7111，7222，7333，7444，7555，7666
+7600     7300      7111，7222，7333，7444，7555，7666
+让所有的sentinel都会监控集群中的三个主节点，在所有的sentinel上配置为：
+sentinel monitor mymaster 192.168.43.128 7100 2
+sentinel monitor mymaster1 192.168.43.128 7200 2
+sentinel monitor mymaster2 192.168.43.128 7300 2
+另外注意的地方是需要把sentinel monitor mymaster配置项放在所有配置的上面，它下面的配置就可以使用别名mymaster了，否则其他配置在使用别名时系统不会识别
+sentinel auth-pass mymaster 123456 如果在集群中设置了密码这里就需要配置了
+sentinel down-after-milliseconds mymaster 5000 每隔5秒sentinel向master发送ping，如果master没有返回pong或者返回错误信息那么sentinel就会主观认为这个master不可用(SDOWN)
+这个时候sentinel不会进行主备切换，当超过某个数量的sentinel也认为这个master不可用时，这里的某个数量就需要前面的配置项sentinel monitor mymaster 192.168.43.128 7100 1
+这里的1就代表了超过1个sentinel认为master不可用，那么这个master就会客观的被认为宕机了(ODOWN),这时sentinel开始进行主备切换，注意sentinel如果检测到
+master被客观的认为宕机了(ODOWN)，sentinel集群会进行投票，由票数最高的sentinel来执行故障转移操作(主备切换)，但如果这个票数最高的sentinel指定主备切换也失败了，
+那么所有进行投票的sentinel会隔一段时间再次对这个master执行主备切换，例如：sentinel A推荐sentinel B去执行failover,
+A等待一段时间后，自行再次去对同一个master执行failover，这个等待的时间是通过failover-timeout配置项去配置的，从这个规则可以看出sentinel不会同一时间并发去failover
+同一个master,第一个进行failover的sentinel如果失败了，另一个将会在一定时间内重新进行failover,以此类推
+sentinel failover-timeout mymaster 20000 表示failover（自动故障转移）操作的执行时间，超过这个时间failover则失败
+sentinel parallel-syncs mymaster 1 当发生主备切换时，这个选项指定了最多可以有多少个slave可以同时对新的master进行同步
+sentinel config-epoch mymaster1 1 确认mymater SDOWN时长，由sentinel系统自动配置
+sentinel leader-epoch mymaster1 1 同时一时间最多1个slave可同时更新配置，由sentinel系统自动配置
+运行sentinel可以通过下面两条命令完成：
+redis-sentinel /path/to/sentinel.conf 多个sentinel配置文件可以通过for循环批量完成
+redis-server /path/to/sentinel.conf --sentinel
+这样就完成了哨兵集群的搭建，运行ps-ef|grep redis可以查看进程信息，运行redis-cli -p 7111 info sentinel查看7111哨兵简单的信息
+redis-cli -p 7111 sentinel master mymaster(别名)可以查看7111哨兵监控的主服务器完整信息，redis-cli -p 7111 sentinel slaves mymaster(别名)查看7111哨兵监控的从服务器完整信息
+redis-cli -c -p 7111 sentinel sentinels mymaster 可以查看mymaster中所有的哨兵信息
+
+SENTINEL masters 显示被监控的所有master以及它们的状态.
+
+SENTINEL master <master name> 显示指定master的信息和状态；
+
+SENTINEL slaves <master name> 显示指定master的所有slave以及它们的状态；
+
+SENTINEL sentinels <master-name>：获取sentinel监视的某个master的哨兵信息
+
+SENTINEL get-master-addr-by-name <master name> 返回指定master的ip和端口，如果正在进行failover或者failover已经完成，将会显示被提升为master的slave的ip和端口。
+
+SENTINEL reset <pattern> 重置名字匹配该正则表达式的所有的master的状态信息，清楚其之前的状态信息，以及slaves信息。
+
+SENTINEL failover <master name> 强制sentinel执行failover，并且不需要得到其他sentinel的同意。但是failover后会将最新的配置发送给其他sentinel。
+
+测试sentinel,先把7100的进程杀掉，然后观察7111哨兵和7444哨兵的日志，因为7444哨兵监控的从节点，7111哨兵监控的主节点
+正常情况下7444日志中应该出现7400从节点替换掉7100主节点并成为新的master，等恢复了7100进程后，7100变为新的从节点
+没有哨兵的情况下手动进行master-slave切换
+
+1）登录192.168.1.11（master）主机的redis，执行shutdown命令关闭redis
+
+2）登录192.168.1.12（new master），执行如下命令：
+
+127.0.0.1:6379> slaveof no one 使这个从服务器关闭复制功能，并从从服务器转变回主服务器，原来同步所得的数据集不会被丢弃
+
+127.0.0.1:6379> config set slave-read-only no 关闭只读属性
+
+3）登录192.168.1.13（slave），执行如下命令，指定新的主服务器地址：
+
+127.0.0.1:6379> slaveof 192.168.1.12 6379   #若有多台slave，则所有slave都需重新指定master
+
+127.0.0.1:6379> info Replication 发现主从一切换完毕，如果一台台切换就会很麻烦，所以需要哨兵模式，哨兵的主要作用是自动切换master-slave
+
+4）如果想要再切换回原来的master,首先把宕机的master重启,在192.168.1.12（new master）执行
+127.0.0.1:6379>save  就是保存192.168.1.12（new master）上所有的数据，也就是从宕机开始到目前的所有数据
+5) 把192.168.1.12（new master）上的dump.rdb拷贝到原来的master并覆盖，启动192.168.1.11（master）上的redis
+6) 再登陆其他的从服务器运行slaveof 192.168.1.11 6379  重新指定master地址
+7) 在192.168.1.12上运行slaveof 192.168.1.11 6379 让它再次成为从服务器
+8) 127.0.0.1:6379> config set slave-read-only yes 开启只读属性
+另外需要注意在5.0.3版本的redis不用集群，而是直接用主从关系来做数据库分布，那么在配置文件中需要修改replicaof <masterip> <masterport>
+设置密码修改masterauth <master-password>主数据库密码，在5.0版本以前的配置文件修改slaveof <masterip> <masterport>,密码修改masterauth <master-password>

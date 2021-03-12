@@ -1,0 +1,43 @@
+docker search centos   在远程仓库搜索centos镜像
+docker pull centos     下载centos镜像
+docker images          查看本地所有的镜像
+docker run -it centos /bin/bash 以交互模式运行centos镜像
+进入镜像后编辑一些东西，比如安装vim,在etc/profile文件里添加alias la='ls -lah',保存退出后source profile，然后exit退出镜像
+docker ps -a 查看所有的容器
+如果容器状态是exited，使用docker start 容器ID 来启动容器，再用docker exec -it 容器ID /bin/bash来重新进入容器
+现在把刚才安装了vim和添加了la命令别名的镜像commit到本地镜像
+docker commit centos的容器ID 再自定义一个镜像名例如centos/vim.la
+这样本地就多了一个自定义的镜像centos/vim.la，使用docker images centos/vim.la查看
+可以使用docker run -it centos/vim.la /bin/bash再次创建一个新容器并进入这个镜像
+docker logs 容器ID 可以查看在这个容器里所有运行过的命令或者内容
+docker create --name mycentos centos 使用centos镜像创建一个名为mycentos的容器，然后docker start启动这个创建的容器，docker exec -it 容器ID /bin/bash 就可以使用这个容器了
+docker rm -f 容器ID 删除一个容器
+docker stop $(docker ps -aq)停止所有容器，-q参数是只列出ps -a中容器的ID，不会列出其他的内容，因为stop，start,rm都是安装容器ID来进行操作的，有其他内容这条命令会报错
+docker rm $(docker ps -aq) 在所有容器停止后，删除所有容器
+docker rmi 镜像名  删除镜像，和上面一样docker rmi $(docker images -q)删除所有镜像
+docker push centos/vim.la 上传本地镜像到镜像仓库，但是需要先登录到docker hub,docker login回车后输入docker hub注册的账户和密码登陆
+docker push 注册用户名/镜像名 比如注册的账户是ramonyan,docker push ramonyan/centos-vim.la,push完后就可以登陆自己注册的docker hub查看push的镜像，再发不出去别人就可以pull并使用
+docker tag 镜像ID centos/vim.la:dev  复制了一个新的镜像centos/vim.la并且给镜像centos/vim.la加一个标签:dev
+重点：docker网络端口映射
+docker run -itdp 5000:5000 image名字 运行的命令  前面的5000是指定本地端口，后面的5000是容器端口
+例子: docker run -itdp 127.0.0.1:5000:5000 centos /bin/bash  创建一个容器并把5000端口绑定到本机的5000端口，默认使用tcp协议
+-it：启动交互模式
+-d : 让容器在后台运行，不会直接进入到容器中，如果需要进入再使用docker exec -it进入
+-P : 容器内部端口随机映射到主机的高端口
+-p : 指定容器内部端口绑定到指定的主机端口
+docker port 容器ID 可以列出容器绑定的IP地址和端口
+runoob@runoob:~$ docker run -d -p 5000:5000 training/webapp python app.py
+runoob@runoob:~$ docker ps
+CONTAINER ID        IMAGE               COMMAND           ...           PORTS                     NAMES
+33e4523d30aa        training/webapp     "python app.py"   ...   0.0.0.0:5000->5000/tcp    berserk_bartik
+fce072cc88ce        training/webapp     "python app.py"   ...   0.0.0.0:32768->5000/tcp   grave_hopper
+docker run -d -P 镜像名 运行的命令  参数P和p不同是P不需要指定端口，系统随机映射一个端口到内部容器开放的网络端口
+例子：
+runoob@runoob:~$ docker run -d -P training/webapp python app.py
+runoob@runoob:~$ docker ps  使用 docker ps 可以看到，本地主机的32768被映射到了容器的 5000 端口。此时访问本机的32768端口即可访问容器内app.py应用提供的界面
+CONTAINER ID    IMAGE               COMMAND            ...           PORTS                     NAMES
+fce072cc88ce    training/webapp     "python app.py"    ...     0.0.0.0:32768->5000/tcp   grave_hopper
+runoob@runoob:~$ docker run -d -p 127.0.0.1:5000:5000/udp training/webapp python app.py  使用udp协议，这里的5000就是udp的5000端口,不是tcp的5000端口
+-p参数还可以指定多个端口映射，例如:
+runoob@runoob:~$ docker run -d -p 5000:5000 -p 3000:80 training/webapp python app.py
+其实docker容器可以看作是系统运行中的进程，镜像看作是进程里面的内容

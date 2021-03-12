@@ -1,0 +1,136 @@
+1.跨站请求伪造(CSRF)
+攻击者通过一些技术手段欺骗用户的浏览器去访问一个自己曾经认证过的网站并运行一些操作（如发邮件，发消息，甚至财产操作如转账和购买商品）。
+由于浏览器曾经认证过，所以被访问的网站会认为是真正的用户操作而去运行。这利用了web中用户身份验证的一个漏洞：
+简单的身份验证只能保证请求发自某个用户的浏览器，却不能保证请求本身是用户自愿发出的。
+防御措施:
+检查Referer字段--HTTP头中有一个Referer字段，这个字段用以标明请求来源于哪个地址。
+添加校验token--由于CSRF的本质在于攻击者欺骗用户去访问自己设置的地址，所以如果要求在访问敏感数据请求时，要求用户浏览器提供不保存在cookie中，
+并且攻击者无法伪造的数据作为校验，那么攻击者就无法再运行CSRF攻击。这种数据通常是窗体中的一个数据项。服务器将其生成并附加在窗体中，
+其内容是一个伪随机数。当客户端通过窗体提交请求时，这个伪随机数也一并提交上去以供校验。正常的访问时，客户端浏览器能够正确得到并传回这个伪随机数，
+而通过CSRF传来的欺骗性攻击中，攻击者无从事先得知这个伪随机数的值，服务端就会因为校验token的值为空或者错误，拒绝这个可疑请求。
+2.对于python字典可以使用if判断，例如
+s={'a':1,'b':2}
+if 'a' in s: 按照字典的键判断
+s.pop('a',None)删除字典的键，如果没有则用None这个默认值代替，不会出现报错
+3.flask给html中传变量
+  <form action="http://localhost:5000/result"" method="POST">
+     <p>Name <input type = "text" name = "Name" /></p>
+     <p>Physics <input type = "text" name = "Physics" /></p>
+     <p>Chemistry <input type = "text" name = "chemistry" /></p>
+     <p>Maths <input type ="text" name = "Mathematics" /></p>
+     <p><input type = "submit" value = "submit" /></p>
+  </form>
+
+<!doctype html>
+  <table border = 1>
+     {% for key, value in result.items() %}
+    <tr>
+       <th> {{ key }} </th>
+       <td> {{ value }}</td>
+    </tr>
+ {% endfor %}
+</table>
+在flask中
+from flask import Flask, render_template, request
+app = Flask(__name__)
+@app.route('/')
+def student():
+   return render_template('student.html')
+首先通过flask路由到student.html网页，然后在student.html网页中的<form action="http://localhost:5000/result"" method="POST">
+再路由回flask的result函数，最终返回result.html网页，传入了result变量，在result网页里使用{% for key, value in result.items() %}查看传入的变量
+@app.route('/result',methods = ['POST', 'GET'])
+def result():
+   if request.method == 'POST':
+      result = request.form
+      return render_template("result.html",result = result)
+也可以在flask的route函数中指定把URL中的变量，例如下面的URL:/success/ramon,ramon就变为参数传给了success的name
+@app.route('/success/<name>')
+def success(name):
+   return 'welcome %s' % name
+if __name__ == '__main__':
+   app.run(debug = True)
+4.部署flask，一般flask可以直接运行脚本生成一个web服务器，但是只能用于测试环境，如果在生产环境需要配合nginx+uwsgi
+结合 Web 服务器使用
+我们可以将 uWSGI 和 Nginx Web 服务器结合使用，实现更高的并发性能。
+
+一个常用的nginx配置如下：
+
+location / {
+    include uwsgi_params;
+    uwsgi_pass 127.0.0.1:3031;
+}
+以上代码表示使用 nginx 接收的 Web 请求传递给端口为 3031 的 uWSGI 服务来处理。
+
+现在，我们可以生成 uWSGI 来本地使用 uwsgi 协议：
+
+uwsgi --socket 127.0.0.1:3031 --wsgi-file foobar.py --master --processes 4 --threads 2 --stats 127.0.0.1:9191
+如果你的 Web 服务器使用 HTTP，那么你必须告诉 uWSGI 本地使用 http 协议 (这与会自己生成一个代理的–http不同):
+
+uwsgi --http-socket 127.0.0.1:3031 --wsgi-file foobar.py --master --processes 4 --threads 2 --stats 127.0.0.1:9191
+部署 Django
+Django 是最常使用的 Python web 框架，假设 Django 项目位于 /home/foobar/myproject:
+
+uwsgi --socket 127.0.0.1:3031 --chdir /home/foobar/myproject/ --wsgi-file myproject/wsgi.py --master --processes 4 --threads 2 --stats 127.0.0.1:9191
+
+--chdir 用于指定项目路径。
+
+我们可以把以上的命令弄成一个 yourfile.ini 配置文件:
+
+[uwsgi]
+socket = 127.0.0.1:3031
+chdir = /home/foobar/myproject/
+wsgi-file = myproject/wsgi.py
+processes = 4
+threads = 2
+stats = 127.0.0.1:9191
+接下来你只需要执行以下命令即可：
+
+uwsgi yourfile.ini
+
+部署 Flask
+Flask 是一个流行的 Python web 框架。
+
+创建文件 myflaskapp.py ，代码如下：
+
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return "<span style='color:red'>I am app 1</span>"
+执行以下命令：
+
+uwsgi --socket 127.0.0.1:3031 --wsgi-file myflaskapp.py --callable app --processes 4 --threads 2 --stats 127.0.0.1:9191
+
+5.HTTP方法：
+GET - 从指定的资源请求数据。
+GET 方法
+请注意，查询字符串（名称/值对）是在 GET 请求的 URL 中发送的：
+
+/test/demo_form.asp?name1=value1&name2=value2
+有关 GET 请求的其他一些注释：
+
+GET 请求可被缓存
+GET 请求保留在浏览器历史记录中
+GET 请求可被收藏为书签
+GET 请求不应在处理敏感数据时使用
+GET 请求有长度限制
+GET 请求只应当用于取回数据
+
+POST - 向指定的资源提交要被处理的数据。
+POST 方法
+请注意，查询字符串（名称/值对）是在 POST 请求的 HTTP 消息主体中发送的：
+
+POST /test/demo_form.asp HTTP/1.1
+Host: w3schools.com
+name1=value1&name2=value2
+有关 POST 请求的其他一些注释：
+
+POST 请求不会被缓存
+POST 请求不会保留在浏览器历史记录中
+POST 不能被收藏为书签
+POST 请求对数据长度没有要求
+
+6.<form method = "post" action = "http://localhost:5000/login"> form表示下面将生成一个表单，这个表单传递给http://localhost:5000/login
+但是在html网页做url路由使用<a href="http://localhost:5000/login">login</a>标签,在网页中生成一个超链接login，点击这个连接就会跳转到http://localhost:5000/login

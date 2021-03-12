@@ -1,0 +1,45 @@
+Mac OS X 清除DNS缓存
+根据Mac OS X操作系统的版本选择以下命令：
+
+Mac OS X 12 (Sierra) and later:
+
+sudo killall -HUP mDNSResponder
+sudo killall mDNSResponderHelper
+sudo dscacheutil -flushcache
+
+
+iptables
+
+参数	含义
+-t	指定表名称
+-n	不做解析
+-L	列出指定表中的策略
+-A	增加策略
+-p	网络协议
+–dport	端口
+-s	数据来源
+-j	动作
+ACCEPT	允许
+REJECT	拒绝
+DROP	丢弃
+-N	增加链
+-E	修改链名称
+-X	删除链
+-D	删除指定策略
+-I	插入
+-R	修改策略
+-P	修改默认策略
+
+iptables  -t filter -nL		#查看filter表中的策略   【不加-t和表的时候默认查看filter表】
+iptables  -F			#刷掉filter表中的所有策略，当没有用-t指定表名称时默认是filter表【相当于删除】
+service iptables save		#保存当前策略到/etc/sysconfig/iptables
+iptables -A INPUT -i lo -j ACCEPT	#允许lo  【回环接口】
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT	##允许访问22端口
+iptables -A INPUT -s 172.25.254.250 -j ACCEPT	##允许250主机访问本机所有端口
+iptables -A INPUT -j REJECT 			##拒绝所有主机的数据来源
+iptables -D INPUT 3    ###删除默认表INPUT列中的第三条策略
+iptables -I INPUT  -p tcp --dport 80  -j REJECT	##插入策略到INPUT中的第一条
+iptables -I INPUT 2 -s 172.25.254.250 -p tcp --dport 22  -j REJECT ###插入策略拒绝250访问22端口到input第二条
+iptables -R INPUT 1 -p tcp --dport 80 -j ACCEPT	##修改第一条策略
+iptables -R INPUT 2 -s 172.25.254.250 -j REJECT ##修改第二条策略为REJECT
+iptable -P INPUT DROP		##把INPUT表中的默认策略改为drop

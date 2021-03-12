@@ -1,0 +1,132 @@
+git init 创建本地git仓库
+git checkout -b ADD 本地创建并切换到一个分支，-b指定分支名称ADD
+git remote 查看远程仓库
+git remote rm 远程仓库名 删除远程仓库
+git remote add ramonyanhao https://github.com/ramonyanhao/Python.git 添加远程仓库到本地，名称为ramonyanhao
+git remote show 远程仓库名 查看远程仓库分支及当前所使用的分支
+git remote set-url origin git@github.com:ramonyanhao/Python.git 重新连接远程仓库
+
+直接修改.git文件夹下的config文件可以修改远程仓库
+[core]
+    repositoryformatversion = 0
+    filemode = false
+    bare = false
+    logallrefupdates = true
+    symlinks = false
+    ignorecase = true
+[submodule]
+    active = .
+[remote "origin"]
+    url = https://github.com/ramonyanhao/Python.git
+    fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "master"]
+    remote = origin
+    merge = refs/heads/master
+
+git branch -a 查看所有分支包括远程分支
+git branch -D ADD 删除本地分支ADD
+git add * 把当前本地git仓库下的文件全部添加
+git commit -m "自定义提交说明" 把刚才添加的文件全部提交到本地仓库
+git commit -m用于提交暂存区(也就是已经add的文件)，git commit -am用于提交跟踪过的文件(就是已经add的文件，但是又一次修改过内容)
+重点注意:未跟踪状态的文件是无法提交的,也就是没有add的文件(红色的文件)。跟踪状态的文件是绿色的，也就是add后的文件
+git commit -m和git commit -am区别就是已经跟踪过的文件发生了修改，-m参数需要先把修改的文件添加进暂存区，git add *,然后再git commit -m,而git commit -am不用添加直接提交修改过的文件
+
+git reset 已经提交的commitID 可以直接把当前的指针指向这个commit,其他已经提交的commit就会被删除
+git reset --hard commitID:重置stage区和工作目录，新创建或者修改的文件会丢失,并且当前指针HEAD指向了这个commitID
+git reset --soft commitID:保留工作目录，并把重置 HEAD 所带来的新的差异放进暂存区,也就是新创建或者修改的文件会被一起放到这个commitID中
+
+git rebase -i commitID 将版本回退到指定的commitID
+rebase作用:可以对某一段线性提交历史进行编辑、删除、复制、粘贴；因此，合理使用rebase命令可以使我们的提交历史干净、简洁
+git rebase -i  [startpoint]  [endpoint]   合并多个commit为一个完整commit
+其中-i的意思是--interactive，即弹出交互式的界面让用户编辑完成合并操作，[startpoint] [endpoint]则指定了一个编辑区间，
+如果不指定[endpoint]，则该区间的终点默认是当前分支HEAD所指向的commit，使用-i参数运行后会进入vim编辑模式，使用以下选项编辑这些区间的commit
+pick：保留该commit（缩写:p）
+reword：保留该commit，但我需要修改该commit的注释（缩写:r）
+edit：保留该commit, 但我要停下来修改该提交(不仅仅修改注释)（缩写:e）
+squash：将该commit和前一个commit合并（缩写:s）
+fixup：将该commit和前一个commit合并，但我不要保留该提交的注释信息（缩写:f）
+exec：执行shell命令（缩写:x）
+drop：我要丢弃该commit（缩写:d）
+:wq保存退出编辑模式后区间的这些commit就会合并为一个完整的commit,使用git log --graph --oneline --all --decorate查看时更美观，不会有分叉只有一条竖线
+完整的语句：
+git checkout master
+git pull
+git checkout local
+git rebase -i  [startpoint]  [endpoint] 或者 git rebase -i HEAD~2  //合并提交 --- 2表示合并头两个commit
+git rebase master---->解决冲突--->git rebase --continue继续合并
+git checkout master
+git merge local
+git push
+将某一段commit粘贴到另一个分支上：
+git rebase   [startpoint]   [endpoint]  --onto  [branchName]  --onto的意思是要将该指定的提交复制到哪个分支上
+
+git log 可以查看所有commit的历史纪录和ID
+git checkout -b old-state commitID号 可以按照指定的commit的ID号创建并切换到这个分支
+git checkout -f <branch>  遇到切换分支时报错可以使用参数-f强制切换分支
+git status 查看git仓库下的所有文件状态，绿色代表新创建的文件，红色代表改动过的文件
+git branch -d [branch name] 删除本地分支，例如:git branch -d ADD
+git push origin :[branch name] 删除远程分支，分支名前的冒号代表删除，例如: git push origin :ADD
+git push origin --delete ADD 这个也可以删除远程分支
+git push origin ADD:ADD 把本地的ADD分支推送到远程仓库ADD分支，如果远程仓库没有名字是ADD的分支则自动会创建分支
+git push --force origin ADD 如果本地版本与远程版本有差异，但又要强制推送可以使用 --force 参数
+git pull origin master:ADD  将远程主机 origin 的 master 分支拉取过来，与本地的ADD分支合并
+git push -f origin master:master 强制把本地master推送给远程master
+使用-f强制推送是因为如果遇到需要把本地的文件上传给一个远程仓库，直接用push会报错，系统需要先把远程仓库pull或者fetch下来，然后在本地解决冲突后再上传
+但是我们自己知道这个远程仓库的文件是没有用的，可以被删除，这样就使用-f强制推送过去，不过请谨慎使用
+
+git merge ADD 将ADD分支合并到主分支
+如果合并分支时遇到冲突，git merge --abort将会抛弃合并过程并且尝试重建合并前的状态。
+但是，当合并开始时如果存在未commit的文件，git merge --abort在某些情况下将无法重现合并前的状态。（特别是这些未commit的文件在合并的过程中将会被修改时）
+所以用到了git stash命令，将这些未commit文件暂存起来，并在解决冲突以后使用git stash pop把这些未commit文件还原出来，具体的方法如下:
+git add .      添加这些文件
+git stash      把添加的文件存到暂存区
+git stash pop  从暂存区取出文件
+如果这些修改的文件不要了，丢弃掉，则用下面的命令:
+git clean n  //这个是清除文件预览
+git clean -f //强制清除文件
+git rm 文件名 //从从暂存区和工作区中删除这个文件
+git rm -f 文件名 如果删除之前修改过并且已经放到暂存区域的话(就是已经被add的文件)，则必须要用强制删除选项 -f
+git rm --cached 文件名  如果想把文件从暂存区域移除，但仍然希望保留在当前工作目录中，换句话说，仅是从跟踪清单中删除，使用 --cached 选项即可
+
+常用git stash命令：
+（1）git stash save "save message"  : 执行存储时，添加备注，方便查找，只有git stash 也要可以的，但查找时不方便识别。
+（2）git stash list  ：查看stash了哪些存储
+（3）git stash show ：显示做了哪些改动，默认show第一个存储,如果要显示其他存贮，后面加stash@{$num}，比如第二个 git stash show stash@{1}
+（4）git stash show -p : 显示第一个存储的改动，如果想显示其他存存储，命令：git stash show  stash@{$num}  -p ，比如第二个：git stash show  stash@{1}  -p
+（5）git stash apply :应用某个存储,但不会把存储从存储列表中删除，默认使用第一个存储,即stash@{0}，如果要使用其他个，git stash apply stash@{$num} ，
+比如第二个：git stash apply stash@{1}
+（6）git stash pop ：命令恢复之前缓存的工作目录，将缓存堆栈中的对应stash删除，并将对应修改应用到当前的工作目录下,
+默认为第一个stash,即stash@{0}，如果要应用并删除其他stash，命令：git stash pop stash@{$num} ，比如应用并删除第二个：git stash pop stash@{1}
+（7）git stash drop stash@{$num} ：丢弃stash@{$num}存储，从列表中删除这个存储
+（8）git stash clear ：删除所有缓存的stash
+重点：没有被git add过的文件是不能被stash暂存的，需要先添加
+
+git merge最简洁用法
+一、开发分支（dev）上的代码达到上线的标准后，要合并到 master 分支
+git checkout dev
+git pull
+git checkout master
+git merge dev 把dev合并到master分支上
+git push -u origin master  把本地仓库当前的dev分支推送到远程仓库的master
+
+二、当master代码改动了，需要更新开发分支（dev）上的代码
+git checkout master
+git pull
+git checkout dev
+git merge master 把master合并到dev分支上
+git push -u origin dev push加了-u参数以后可以直接用git push 代替git push origin master，-u会记录下push或者pull的仓库地址
+
+git使用点线图来查看所有提交的历史记录
+git log --graph --oneline --all --decorate
+--decorate： 标记会让git log显示每个commit的引用
+--oneline： 一行显示
+--all: 所有分支
+--graph: 把日志变成点线图
+D:\Python>git log --graph --oneline --all --decorate
+* 1d3bea8 (HEAD -> ADD, origin/ADD) add git说明
+* c789e9c (master) ADD docker说明和assite资产管理脚本
+* 53c108a (origin/添加runas.py脚本和flask获取用户IP) ADD docker说明和资产管理脚本
+* 77f0c80 add 编码
+| * 1acbe11 (origin/master) add 编码
+|/
+* 2358b76 add 编码

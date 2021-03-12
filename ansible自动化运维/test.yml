@@ -1,0 +1,15 @@
+- hosts: all
+
+  remote_user: test
+
+  gather_facts: no
+
+  become: yes
+
+  become_method: sudo
+
+  tasks:
+
+    - name: test connection
+
+      ping:
